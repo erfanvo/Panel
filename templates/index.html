@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Extractor Engine | کنترل پنل </title>
+    
+    <!-- Fonts & Core Dependencies -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Vazirmatn', 'sans-serif'],
+                        mono: ['Consolas', 'Menlo', 'monospace']
+                    },
+                    colors: {
+                        midnight: '#0b1329',
+                        darkCard: 'rgba(17, 24, 39, 0.75)',
+                        lightCard: 'rgba(255, 255, 255, 0.9)',
+                        neonCyan: '#06b6d4',
+                        neonEmerald: '#10b981',
+                        neonCrimson: '#f43f5e',
+                        neonViolet: '#8b5cf6'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    
+    <style>
+        /* Glassmorphism & Custom Elements */
+        .glass-panel {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: all 0.3s ease;
+        }
+        .dark .glass-panel {
+            background-color: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        html:not(.dark) .glass-panel {
+            background-color: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Terminal Console */
+        .terminal-box {
+            background-color: #030712;
+            font-family: 'Consolas', monospace;
+            border: 1px solid #1f2937;
+            height: 320px;
+            overflow-y: auto;
+        }
+
+        /* DataTables Polish for Dark & Light */
+        table.dataTable { border-collapse: collapse !important; width: 100% !important; }
+        .dark table.dataTable { color: #cbd5e1 !important; }
+        html:not(.dark) table.dataTable { color: #334155 !important; }
+        
+        .dark table.dataTable thead th { border-bottom: 1px solid #334155 !important; color: #94a3b8 !important; }
+        html:not(.dark) table.dataTable thead th { border-bottom: 2px solid #cbd5e1 !important; color: #475569 !important; }
+
+        table.dataTable tbody tr { background: transparent !important; }
+        .dark table.dataTable tbody tr:hover { background-color: rgba(255, 255, 255, 0.03) !important; }
+        html:not(.dark) table.dataTable tbody tr:hover { background-color: rgba(241, 245, 249, 0.8) !important; }
+
+        .dataTables_filter input {
+            padding: 6px 12px;
+            border-radius: 8px;
+            outline: none;
+            margin-right: 8px;
+        }
+        .dark .dataTables_filter input { background: #0f172a; border: 1px solid #334155; color: #fff; }
+        html:not(.dark) .dataTables_filter input { background: #fff; border: 1px solid #cbd5e1; color: #0f172a; }
+
+        .dataTables_paginate .paginate_button.current {
+            background: #10b981 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body class="min-h-screen transition-colors duration-300 font-sans antialiased dark:bg-[#080d1a] dark:text-slate-100 bg-[#f8fafc] text-slate-800 p-4 lg:p-8">
+
+    <!-- Top Navigation -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8 pb-4 border-b dark:border-slate-800 border-slate-200 gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <div class="h-3 w-3 rounded-full bg-neonEmerald shadow-[0_0_12px_#10b981] animate-pulse"></div>
+                <h1 class="text-2xl lg:text-3xl font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-l from-neonCyan to-neonEmerald">
+                    NEXUS EXTRACTOR ENGINE
+                </h1>
+            </div>
+            <p class="text-xs lg:text-sm text-slate-500 dark:text-slate-400 mt-1">داشبورد زنده برای مدیریت، پردازش همزمان و استخراج دیتا</p>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="glass-panel p-2.5 rounded-xl flex items-center gap-2 text-sm font-medium hover:scale-105 transition-transform">
+                <span id="themeIcon">☀️ تم روشن</span>
+            </button>
+            <div class="glass-panel px-4 py-2 rounded-xl text-xs font-mono font-semibold tracking-wider" id="clock">00:00:00</div>
+        </div>
+    </header>
+
+    <!-- Top Row: Telemetry Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">تعداد اکانت‌ها</span>
+            <div class="text-3xl font-extrabold mt-2" id="stat-total">0</div>
+            <div class="h-10 mt-3"><canvas id="chart-total"></canvas></div>
+        </div>
+
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">سلامت پردازش</span>
+            <div class="text-3xl font-extrabold mt-2 text-neonEmerald flex items-baseline gap-1">
+                <span id="stat-success">100</span><span class="text-sm">%</span>
+            </div>
+            <div class="h-10 mt-3"><canvas id="chart-success"></canvas></div>
+        </div>
+
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">پروکسی‌های متصل</span>
+            <div class="text-3xl font-extrabold mt-2 text-neonViolet" id="stat-proxies">30</div>
+            <div class="h-10 mt-3"><canvas id="chart-proxies"></canvas></div>
+        </div>
+
+        <div class="glass-panel p-5 rounded-2xl flex flex-col justify-center items-center text-center">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">وضعیت موتور</span>
+            <div class="flex items-center gap-2.5">
+                <div id="statusDot" class="h-3.5 w-3.5 rounded-full bg-slate-500"></div>
+                <span id="statusText" class="text-lg font-bold tracking-wider font-mono">STANDBY</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Middle Row: Sidebar Controls & Terminal -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
+        
+        <!-- Controls Pane (Right-aligned in RTL) -->
+        <aside class="lg:col-span-4 glass-panel p-6 rounded-2xl flex flex-col justify-between gap-4">
+            <div>
+                <h3 class="text-md font-bold mb-4 flex items-center gap-2 border-b dark:border-slate-800 border-slate-200 pb-3">
+                    <span>⚡️</span> فرمان‌های اجرایی
+                </h3>
+                
+                <div class="flex flex-col gap-3">
+                    <button onclick="triggerEngine('start')" class="w-full py-3.5 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                        <span>▶️</span> استارت پردازش همزمان
+                    </button>
+                    
+                    <button onclick="triggerEngine('stop')" class="w-full py-3.5 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2">
+                        <span>🛑</span> توقف فوری سیستم
+                    </button>
+                    
+                    <button onclick="openExportModal()" class="w-full py-3.5 px-4 rounded-xl font-bold border border-cyan-500/30 text-cyan-500 dark:text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all flex items-center justify-center gap-2 mt-2">
+                        <span>📥</span> دانلود فایل دیتاها
+                    </button>
+                </div>
+            </div>
+
+            <div class="border-t dark:border-slate-800 border-slate-200 pt-4">
+                <button onclick="triggerEngine('clean')" class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-rose-500 border border-rose-500/30 hover:bg-rose-500/10 transition-all">
+                    🧹 پاک کردن کل دیتابیس
+                </button>
+            </div>
+        </aside>
+
+        <!-- Live Terminal -->
+        <main class="lg:col-span-8 glass-panel p-6 rounded-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-3 pb-2 border-b dark:border-slate-800 border-slate-200">
+                <div class="flex items-center gap-2">
+                    <span class="h-2.5 w-2.5 rounded-full bg-red-500 inline-block"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-yellow-500 inline-block"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-green-500 inline-block"></span>
+                    <h3 class="text-xs font-mono font-bold tracking-wider text-slate-400 mr-2">NEXUS TERMINAL (LIVE MONITOR)</h3>
+                </div>
+                <button onclick="fetchLogs()" class="text-xs text-slate-400 hover:text-emerald-400">رفرش لاگ</button>
+            </div>
+            
+            <div class="terminal-box rounded-xl p-4 text-xs flex-1 leading-relaxed" id="terminalOutput"></div>
+        </main>
+    </section>
+
+    <!-- Bottom Section: Advanced Database Grid -->
+    <section class="glass-panel p-6 rounded-2xl">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 border-b dark:border-slate-800 border-slate-200 pb-4">
+            <div>
+                <h2 class="text-lg font-bold">بانک اطلاعاتی اکانت‌ها</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">نمایش در لحظه‌ی دیتاها و توکن‌ها بدون اشغال فضای سیستم</p>
+            </div>
+
+            <!-- Date & Time Range Filter -->
+            <div class="flex flex-wrap items-center gap-3 bg-black/10 dark:bg-black/30 p-2 rounded-xl border dark:border-slate-800 border-slate-200 text-xs">
+                <span class="font-semibold text-slate-400">فیلتر زمانی:</span>
+                <div class="flex items-center gap-1">
+                    <label>از:</label>
+                    <input type="datetime-local" id="filterStart" class="bg-transparent border dark:border-slate-700 border-slate-300 rounded p-1 text-slate-800 dark:text-slate-200 outline-none">
+                </div>
+                <div class="flex items-center gap-1">
+                    <label>تا:</label>
+                    <input type="datetime-local" id="filterEnd" class="bg-transparent border dark:border-slate-700 border-slate-300 rounded p-1 text-slate-800 dark:text-slate-200 outline-none">
+                </div>
+                <button onclick="resetDateFilter()" class="px-2.5 py-1 rounded bg-slate-500/20 text-slate-500 dark:text-slate-400 hover:bg-slate-500/30">حذف فیلتر</button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table id="mainAccountsTable" class="display nowrap text-sm">
+                <thead>
+                    <tr>
+                        <th>شماره موبایل</th>
+                        <th>اسم پروفایل</th>
+                        <th>زمان ثبت</th>
+                        <th>وضعیت</th>
+                        <th>لینک ورود سریع</th>
+                        <th>کارها</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="glass-panel dark:bg-[#0e172a] bg-white rounded-2xl max-w-lg w-full p-6 border dark:border-slate-700 border-slate-300 shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 border-slate-200 pb-3">
+                <h3 class="font-bold text-lg">تنظیمات دانلود خروجی</h3>
+                <button onclick="closeExportModal()" class="text-slate-400 hover:text-rose-500 text-xl font-bold">&times;</button>
+            </div>
+
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-normal">
+                دقیقاً همون دیتاهایی که توی جدول فیلتر کردی دانلود میشن. فرمت فایلت رو انتخاب کن:
+            </p>
+
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="exportData('raw_links')" class="p-3.5 rounded-xl text-right border dark:border-slate-800 border-slate-200 hover:border-cyan-500 dark:hover:border-cyan-500 flex justify-between items-center group transition-all">
+                    <div>
+                        <div class="font-bold text-sm text-cyan-500">۱. فقط لینک‌ها (فایل متنی ساده)</div>
+                        <div class="text-xs text-slate-400 mt-0.5">فقط لیست لینک‌ها توی یه فایل TXT (بدون متن اضافه)</div>
+                    </div>
+                    <span class="text-lg group-hover:-translate-x-1 transition-transform">🔗</span>
+                </button>
+
+                <button onclick="exportData('links_phone')" class="p-3.5 rounded-xl text-right border dark:border-slate-800 border-slate-200 hover:border-emerald-500 dark:hover:border-emerald-500 flex justify-between items-center group transition-all">
+                    <div>
+                        <div class="font-bold text-sm text-emerald-500">۲. لینک‌ها به علاوه شماره موبایل</div>
+                        <div class="text-xs text-slate-400 mt-0.5">شماره تلفن به همراه لینک مستقیم و اسم پروفایل</div>
+                    </div>
+                    <span class="text-lg group-hover:-translate-x-1 transition-transform">📱</span>
+                </button>
+
+                <button onclick="exportData('numbered_links')" class="p-3.5 rounded-xl text-right border dark:border-slate-800 border-slate-200 hover:border-violet-500 dark:hover:border-violet-500 flex justify-between items-center group transition-all">
+                    <div>
+                        <div class="font-bold text-sm text-violet-500">۳. لینک‌های لیست‌شده (۱، ۲، ۳...)</div>
+                        <div class="text-xs text-slate-400 mt-0.5">فقط لینک‌ها همراه با شماره ردیف (بدون متن اضافه)</div>
+                    </div>
+                    <span class="text-lg group-hover:-translate-x-1 transition-transform">🔢</span>
+                </button>
+
+                <button onclick="exportData('json')" class="p-3.5 rounded-xl text-right border dark:border-slate-800 border-slate-200 hover:border-amber-500 dark:hover:border-amber-500 flex justify-between items-center group transition-all">
+                    <div>
+                        <div class="font-bold text-sm text-amber-500">۴. فایل دیتای کامل (بکاپ JSON)</div>
+                        <div class="text-xs text-slate-400 mt-0.5">شامل کل اطلاعات رکوردها با تاریخ و ساعت دقیق</div>
+                    </div>
+                    <span class="text-lg group-hover:-translate-x-1 transition-transform">📦</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="glass-panel dark:bg-[#0e172a] bg-white rounded-2xl max-w-sm w-full p-6 border dark:border-slate-700 border-slate-300">
+            <h3 class="font-bold text-lg mb-2">تایید حذف</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">
+                مطمئنی می‌خوای شماره <span id="delTargetPhone" class="font-bold font-mono text-rose-500"></span> رو پاک کنی؟ با این کار، شماره دوباره برای سیستم آزاد می‌شه.
+            </p>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-500/20 hover:bg-slate-500/30">بی‌خیال</button>
+                <button onclick="confirmDelete()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700">آره، پاک کن</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Real-Time Clock
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('fa-IR');
+        }, 1000);
+
+        // Theme Toggle Engine
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.classList.toggle('dark');
+            document.getElementById('themeIcon').innerText = isDark ? '☀️ تم روشن' : '🌙 تم دارک';
+            localStorage.setItem('nexus_theme', isDark ? 'dark' : 'light');
+        }
+        if (localStorage.getItem('nexus_theme') === 'light') {
+            toggleTheme();
+        }
+
+        // Charts Initializer
+        const chartConfig = (color) => ({
+            type: 'line',
+            data: { labels: Array(12).fill(''), datasets: [{ data: Array(12).fill(0), borderColor: color, borderWidth: 2, fill: true, backgroundColor: color + '15', tension: 0.4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } }, elements: { point: { radius: 0 } } }
+        });
+        const chartTotal = new Chart(document.getElementById('chart-total'), chartConfig('#06b6d4'));
+        const chartSuccess = new Chart(document.getElementById('chart-success'), chartConfig('#10b981'));
+        const chartProxies = new Chart(document.getElementById('chart-proxies'), chartConfig('#8b5cf6'));
+
+        function pushChartPoint(chart, val) {
+            chart.data.datasets[0].data.push(val);
+            if (chart.data.datasets[0].data.length > 12) chart.data.datasets[0].data.shift();
+            chart.update();
+        }
+
+        // Custom Date Range Filtering for DataTables
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            const minStr = document.getElementById('filterStart').value;
+            const maxStr = document.getElementById('filterEnd').value;
+            const rowDateStr = data[2]; // Index 2 is Date & Time
+
+            if (!minStr && !maxStr) return true;
+            if (!rowDateStr) return false;
+
+            const rowDate = new Date(rowDateStr.replace(' ', 'T')).getTime();
+            const min = minStr ? new Date(minStr).getTime() : null;
+            const max = maxStr ? new Date(maxStr).getTime() : null;
+
+            if (min && rowDate < min) return false;
+            if (max && rowDate > max) return false;
+            return true;
+        });
+
+        // Initialize DataTable
+        let table;
+        $(document).ready(function() {
+            table = $('#mainAccountsTable').DataTable({
+                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/fa.json" },
+                pageLength: 10,
+                order: [[2, 'desc']], // Sort newest first
+                columns: [
+                    { data: 'phone', render: d => `<span class="font-mono font-bold">${d}</span>` },
+                    { data: 'name' },
+                    { data: 'created_at', render: d => `<span class="font-mono text-xs text-slate-400">${d}</span>` },
+                    { data: 'status', render: () => `<span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Active</span>` },
+                    { data: 'link', render: d => `<span onclick="copyLink('${d}')" class="font-mono text-xs cursor-pointer p-1.5 rounded bg-black/5 dark:bg-white/5 border border-slate-300 dark:border-slate-700 block truncate max-w-xs hover:border-cyan-500" title="برای کپی کلیک کن">${d}</span>` },
+                    { data: 'phone', orderable: false, render: d => `<button onclick="openDeleteModal('${d}')" class="text-rose-500 hover:text-rose-400 text-xs font-semibold">حذف</button>` }
+                ],
+                ajax: { url: '/api/accounts', dataSrc: 'data' }
+            });
+
+            $('#filterStart, #filterEnd').on('change', () => table.draw());
+        });
+
+        function resetDateFilter() {
+            document.getElementById('filterStart').value = '';
+            document.getElementById('filterEnd').value = '';
+            table.draw();
+        }
+
+        function copyLink(link) {
+            navigator.clipboard.writeText(link).then(() => alert('لینک ورود کپی شد.'));
+        }
+
+        // Live Polls
+        function fetchStats() {
+            fetch('/api/stats').then(res => res.json()).then(data => {
+                document.getElementById('stat-total').innerText = data.total_accounts;
+                document.getElementById('stat-success').innerText = data.success_rate;
+                document.getElementById('stat-proxies').innerText = data.active_proxies;
+                
+                pushChartPoint(chartTotal, data.total_accounts);
+                pushChartPoint(chartSuccess, data.success_rate);
+                pushChartPoint(chartProxies, data.active_proxies);
+
+                const sDot = document.getElementById('statusDot');
+                const sTxt = document.getElementById('statusText');
+                sTxt.innerText = data.system_status.toUpperCase();
+                if (data.system_status === 'Processing') {
+                    sDot.className = 'h-3.5 w-3.5 rounded-full bg-neonEmerald shadow-[0_0_12px_#10b981] animate-pulse';
+                    sTxt.className = 'text-lg font-bold tracking-wider font-mono text-neonEmerald';
+                } else {
+                    sDot.className = 'h-3.5 w-3.5 rounded-full bg-slate-500';
+                    sTxt.className = 'text-lg font-bold tracking-wider font-mono text-slate-400';
+                }
+            });
+        }
+
+        let lastLogs = "";
+        function fetchLogs() {
+            fetch('/api/logs').then(res => res.json()).then(data => {
+                const logsStr = JSON.stringify(data.logs);
+                if (logsStr !== lastLogs) {
+                    const out = document.getElementById('terminalOutput');
+                    out.innerHTML = '';
+                    data.logs.forEach(l => {
+                        const div = document.createElement('div');
+                        div.className = 'mb-1.5 text-emerald-400/90';
+                        div.innerHTML = `<span class="text-slate-500">[${l.timestamp}]</span> root@nexus:~# <span class="text-slate-200">${l.message}</span>`;
+                        out.appendChild(div);
+                    });
+                    out.scrollTop = out.scrollHeight;
+                    lastLogs = logsStr;
+                }
+            });
+        }
+
+        setInterval(fetchStats, 3000);
+        setInterval(fetchLogs, 3000);
+        fetchStats(); fetchLogs();
+
+        // Control Triggers
+        function triggerEngine(action) {
+            if (action === 'clean' && !confirm('کل دیتابیس داره پاک میشه! مطمئنی؟')) return;
+            fetch(`/api/action/${action}`, { method: 'POST' }).then(res => res.json()).then(data => {
+                alert(data.message);
+                fetchStats();
+                table.ajax.reload(null, false);
+            });
+        }
+
+        // Delete Logic
+        let targetPhone = null;
+        function openDeleteModal(phone) {
+            targetPhone = phone;
+            document.getElementById('delTargetPhone').innerText = phone;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            targetPhone = null;
+        }
+        function confirmDelete() {
+            if (!targetPhone) return;
+            fetch('/api/action/delete_account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: targetPhone })
+            }).then(() => {
+                closeDeleteModal();
+                table.ajax.reload(null, false);
+            });
+        }
+
+        // Export Functionality (Honoring Active Filters)
+        function openExportModal() { document.getElementById('exportModal').classList.remove('hidden'); }
+        function closeExportModal() { document.getElementById('exportModal').classList.add('hidden'); }
+
+        function exportData(type) {
+            // Get currently visible/filtered rows from DataTable
+            const rows = table.rows({ search: 'applied' }).data().toArray();
+            if (rows.length === 0) {
+                alert('هیچ دیتایی تو این بازه پیدا نشد!');
+                return;
+            }
+
+            let fileContent = "";
+            let fileName = `Nexus_${type}_${new Date().toISOString().slice(0,10)}`;
+            let mimeType = "text/plain;charset=utf-8";
+
+            if (type === 'raw_links') {
+                fileContent = rows.map(r => r.link).join('\n');
+                fileName += ".txt";
+            } 
+            else if (type === 'links_phone') {
+                fileContent = rows.map(r => `شماره: ${r.phone} | تاریخ: ${r.created_at} | لینک: ${r.link}`).join('\n');
+                fileName += ".txt";
+            } 
+            else if (type === 'numbered_links') {
+                fileContent = rows.map((r, i) => `${i + 1}. ${r.link}`).join('\n');
+                fileName += ".txt";
+            } 
+            else if (type === 'json') {
+                fileContent = JSON.stringify(rows, null, 2);
+                fileName += ".json";
+                mimeType = "application/json;charset=utf-8";
+            }
+
+            const blob = new Blob([fileContent], { type: mimeType });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+            closeExportModal();
+        }
+    </script>
+</body>
+                          </html>
