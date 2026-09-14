@@ -1,5 +1,5 @@
 """
-Nexus Extractor Engine - Cloud Master Panel
+Nexus Extractor Engine - Adaptive Cloud Panel
 """
 import os, json, secrets, threading, time
 from datetime import datetime
@@ -9,22 +9,17 @@ import redis
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", secrets.token_hex(24))
 
-# Configuration
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://your-domain.com").rstrip('/')
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin123")
 APP_SECRET_HEADER = "JetApp-Secure-Client"
 
-# Redis Connection
 try:
     db = redis.Redis.from_url(REDIS_URL, decode_responses=True)
     db.ping()
-    print("✅ Connected to Redis successfully.")
-except Exception as e:
-    print(f"⚠️ Redis Connection Error: {e}")
+except Exception:
     db = None
 
-# ================= Background Token Worker =================
 def token_worker():
     while True:
         if db:
@@ -35,10 +30,8 @@ def token_worker():
                     token = secrets.token_urlsafe(14)
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # ذخیره نشست برای اپلیکیشن
                     db.setex(f"jet_session:{token}", 30 * 24 * 3600, json.dumps(acc.get("data", {}), ensure_ascii=False))
                     
-                    # ذخیره اطلاعات برای نمایش در جدول و خروجی‌ها
                     record = {
                         "phone": acc.get("phone", ""),
                         "name": acc.get("name", ""),
@@ -52,31 +45,28 @@ def token_worker():
 
 threading.Thread(target=token_worker, daemon=True).start()
 
-# ================= Login Template =================
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ورود به پنل سازمانی | Nexus</title>
+    <title>ورود | Nexus Workspace</title>
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>body { font-family: 'Vazirmatn', sans-serif; background-color: #f8fafc; }</style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl w-full max-w-md">
-        <div class="flex justify-center mb-6"><div class="h-12 w-12 bg-indigo-600 rounded-xl shadow-lg flex items-center justify-center"><svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div></div>
-        <h2 class="text-2xl font-bold text-slate-800 text-center mb-6">NEXUS WORKSPACE</h2>
+    <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm">
+        <h2 class="text-2xl font-bold text-slate-800 text-center mb-6">NEXUS PANEL</h2>
         <form method="POST" action="/login" class="flex flex-col gap-4">
-            <input type="password" name="password" placeholder="کلمه عبور سیستم..." required class="bg-slate-50 border border-slate-300 text-slate-800 rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-center" dir="ltr">
-            <button type="submit" class="bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors shadow-md">ورود ایمن</button>
+            <input type="password" name="password" placeholder="رمز عبور..." required class="bg-slate-50 border border-slate-300 rounded-xl p-3 text-center outline-none focus:border-blue-500 transition-colors" dir="ltr">
+            <button type="submit" class="bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-md">ورود به سیستم</button>
         </form>
     </div>
 </body>
 </html>
 """
 
-# ================= Routes =================
 @app.route('/')
 def index():
     if not session.get('logged_in'): return render_template_string(LOGIN_HTML)
@@ -96,18 +86,27 @@ def logout():
 
 @app.route('/api/stats')
 def get_stats():
-    if not session.get('logged_in') or not db: return jsonify({"total_accounts":0, "success_rate":100, "active_proxies":0, "system_status":"Offline"})
+    if not session.get('logged_in') or not db: 
+        return jsonify({"total_accounts":0, "success_rate":0, "active_proxies": None, "system_status":"Offline"})
+    
     total = db.hlen("jet:bulk_accounts")
+    # خواندن آمار واقعی پروکسی‌ها از سیستم لوکال
+    active_proxies = db.get("nexus:active_proxies")
     last_cmd = db.lindex("bot:admin_commands", -1)
     status = "Processing" if last_cmd == "START_BULK" else "Standby"
-    return jsonify({"total_accounts": total, "success_rate": 100.0 if total else 0.0, "active_proxies": 25, "system_status": status})
+    
+    return jsonify({
+        "total_accounts": total,
+        "success_rate": 100.0 if total else 0.0,
+        "active_proxies": int(active_proxies) if active_proxies else None,
+        "system_status": status
+    })
 
 @app.route('/api/logs')
 def get_logs():
     if not session.get('logged_in') or not db: return jsonify({"logs": []})
     raw_logs = db.lrange("bot:admin_alerts", -40, -1)
     logs_fmt = [{"timestamp": datetime.now().strftime("%H:%M:%S"), "message": l.replace('\n', ' - ')} for l in raw_logs]
-    if not logs_fmt: logs_fmt.append({"timestamp": datetime.now().strftime("%H:%M:%S"), "message": "سیستم منتظر دستور..."})
     return jsonify({"logs": logs_fmt})
 
 @app.route('/api/accounts')
@@ -133,7 +132,7 @@ def handle_action(cmd):
     if cmd == 'start':
         db.delete("bot:admin_commands")
         db.rpush("bot:admin_commands", "START_BULK")
-        return jsonify({"status": "ok", "message": "پردازش موازی آغاز شد."})
+        return jsonify({"status": "ok", "message": "فرمان استارت ارسال شد."})
     elif cmd == 'stop':
         db.rpush("bot:admin_commands", "STOP_EMERGENCY")
         return jsonify({"status": "ok", "message": "فرمان توقف صادر شد."})
@@ -162,13 +161,12 @@ def delete_account():
 def secure_gateway(token):
     if not db: return "Server Error", 500
     session_str = db.get(f"jet_session:{token}")
-    if not session_str: return '<html dir="rtl"><body style="background:#f8fafc;color:#e11d48;font-family:Tahoma;text-align:center;padding:50px;"><h2>لینک نامعتبر یا منقضی شده است.</h2></body></html>', 404
+    if not session_str: return '<html dir="rtl"><body style="background:#f8fafc;color:#e11d48;font-family:Tahoma;text-align:center;padding:50px;"><h2>لینک منقضی شده است.</h2></body></html>', 404
     
     u_agent, app_hdr = request.headers.get("User-Agent", ""), request.headers.get("X-Client-App", "")
     if app_hdr == APP_SECRET_HEADER or "JetAppClient" in u_agent:
         return jsonify({"status": "success", "session": json.loads(session_str)})
-    return '<html dir="rtl"><body style="background:#f8fafc;color:#e11d48;font-family:Tahoma;text-align:center;padding:50px;"><h2>دسترسی مسدود است</h2><p>این پیوند فقط از داخل اپلیکیشن موبایل قابل بازگشایی است.</p></body></html>'
+    return '<html dir="rtl"><body style="background:#f8fafc;color:#e11d48;font-family:Tahoma;text-align:center;padding:50px;"><h2>دسترسی مسدود است</h2></body></html>'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
-
